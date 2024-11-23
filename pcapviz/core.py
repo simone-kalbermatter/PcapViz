@@ -160,7 +160,17 @@ class GraphManager(object):
 		self.graph.label ="Layer %d traffic graph for packets from %s" % (self.layer,str(self.args.pcaps))
 
 		graph = self.get_graphviz_format()
-		
+
+		unique_ips = set()
+		for node in self.graph.nodes():
+			ip = node.split(':')[0]
+			unique_ips.add(ip)
+
+		from matplotlib import cm
+		from matplotlib.colors import to_hex
+		cmap = cm.get_cmap('tab10', len(unique_ips))
+		ip_colors = {ip: to_hex(cmap(i)) for i, ip in enumerate(unique_ips)}
+				
 		for node in graph.nodes():
 			if node not in self.data:
 				# node might be deleted, because it's not legit etc.
@@ -170,7 +180,8 @@ class GraphManager(object):
 			node.attr['shape'] = self.args.shape
 			node.attr['fontsize'] = '10'
 			node.attr['width'] = '0.5'
-			node.attr['color'] = 'linen'
+			node_ip = snode.split(':')[0] 
+			node.attr['color'] = ip_colors.get(node_ip, 'linen')
 			node.attr['style'] = 'filled,rounded'
 			if 'country' in self.data[snode]:
 				country_label = self.data[snode]['country']
