@@ -24,7 +24,6 @@ import socket
 import maxminddb
 
 
-
 class GraphManager(object):
 	""" Generates and processes the graph based on packets
 	"""
@@ -62,6 +61,29 @@ class GraphManager(object):
 
 		for src, dst in self.graph.edges():
 			self._retrieve_edge_info(src, dst)
+
+	def resolve_internal_ip(self, ip):
+		""" 		[skalberm@slimfly24 ~]$ sudo ibhosts
+		Ca      : 0x98039b0300b7e172 ports 1 "slimfly26 HCA-1"
+		Ca      : 0xb8599f0300895a58 ports 1 "Mellanox Technologies Aggregation Node"
+		Ca      : 0xec0d9a0300656264 ports 1 "slimfly28 HCA-1"
+		Ca      : 0xec0d9a030065625c ports 1 "slimfly30 HCA-1"
+		Ca      : 0x98039b0300b7e152 ports 1 "slimfly27 HCA-1"
+		Ca      : 0xec0d9a0300656290 ports 1 "slimfly29 mlx5_0"
+		Ca      : 0x98039b0300b7e182 ports 1 "slimfly25 HCA-1"
+		Ca      : 0x98039b0300b7e122 ports 1 "slimfly24 HCA-1" """
+		IP_TO_HOSTNAME = {
+			"192.168.1.34": "slimfly24",
+			"192.168.1.35": "slimfly25",
+			"192.168.1.36": "slimfly26",
+			"192.168.1.37": "slimfly27",
+			"192.168.1.38": "slimfly28",
+			"192.168.1.39": "slimfly29",
+			"192.168.1.40": "slimfly30",
+		}
+		hostname = IP_TO_HOSTNAME.get(ip, None)
+		return hostname
+
 
 	def lookup(self,ip):
 		"""deeNS caches all slow! fqdn reverse dns lookups from ip"""
@@ -166,39 +188,46 @@ class GraphManager(object):
 			ip = node.split(':')[0]
 			unique_ips.add(ip)
 
-		from matplotlib import cm
-		from matplotlib.colors import to_hex
-		cmap = cm.get_cmap('tab10', len(unique_ips))
-		ip_colors = {ip: to_hex(cmap(i)) for i, ip in enumerate(unique_ips)}
+		host_colors = {
+			"slimfly24": "PaleGreen",
+			"slimfly25": "LightPink",
+			"slimfly26": "LightCoral",
+			"slimfly27": "Honeydew",
+			"slimfly28": "PaleTurquoise",
+			"slimfly29": "MintCream",
+			"slimfly30": "Honeydew"
+		}
+		default_color = "gray"
 				
 		for node in graph.nodes():
 			if node not in self.data:
 				# node might be deleted, because it's not legit etc.
 				continue
-			snode = str(node)
-			nnode = self.lookup(snode)
+			
+			snode = str(node)  # Full node address, possibly with a port
+			ip_only = snode.split(':')[0]  # Extract just the IP
+			port = snode.split(':')[1] if ':' in snode else None  # Extract the port if present
+
+			nnode = self.resolve_internal_ip(ip_only)  # Get the hostname
+
+			# Use the hostname and optionally append the port
+			if nnode:
+				if port:
+					nodelab = f"{nnode}:{port}"  # Show hostname with port
+				else:
+					nodelab = nnode  # Show hostname only
+			else:
+				nodelab = snode  # Fallback to the original node (IP + port)
+
+			node.attr['label'] = nodelab
 			node.attr['shape'] = self.args.shape
 			node.attr['fontsize'] = '10'
 			node.attr['width'] = '0.5'
 			node_ip = snode.split(':')[0] 
-			node.attr['color'] = ip_colors.get(node_ip, 'linen')
+			node.attr['color'] = host_colors.get(nnode, default_color)
 			node.attr['style'] = 'filled,rounded'
-			if 'country' in self.data[snode]:
-				country_label = self.data[snode]['country']
-				city_label = self.data[snode]['city']
-				if nnode != snode:
-					nodelab = '%s\n%s' % (nnode,snode)
-				else:
-					nodelab = snode
-				if country_label != 'private':
-					if city_label == 'private':
-						nodelab += "\n(%s)" % (country_label)
-					else:
-						nodelab += "\n(%s, %s)" % (city_label, country_label)
-				node.attr['label'] = nodelab
-				if not (country_label == 'private'):
-					node.attr['color'] = 'lightyellow'
-					#TODO add color based on country or scan?
+
+
 		for edge in graph.edges():
 			connection = self.graph[edge[0]][edge[1]]
 			edge.attr['label'] = 'transmitted: %i bytes\n%s ' % (connection['transmitted'], ' | '.join(connection['layers']))
