@@ -22,6 +22,7 @@ import logging
 import os
 import socket
 import maxminddb
+import datetime
 
 
 class GraphManager(object):
@@ -195,7 +196,7 @@ class GraphManager(object):
 			"slimfly27": "Honeydew",
 			"slimfly28": "PaleTurquoise",
 			"slimfly29": "MintCream",
-			"slimfly30": "Honeydew"
+			"slimfly30": "SkyBlue"
 		}
 		default_color = "gray"
 				
@@ -230,7 +231,42 @@ class GraphManager(object):
 
 		for edge in graph.edges():
 			connection = self.graph[edge[0]][edge[1]]
-			edge.attr['label'] = 'transmitted: %i bytes\n%s ' % (connection['transmitted'], ' | '.join(connection['layers']))
+
+			transmitted = connection['transmitted']
+			num_packets = connection['connections']
+
+			packet_details = []
+			for packet in connection['packets']:
+				# Extract sequence number
+				timestamp = float(packet.time)
+				capture_time = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc).strftime('%H:%M:%S.%f')
+				
+				# Extract packet type (flags)
+				flags = packet[TCP].flags if packet.haslayer(TCP) else None
+				flag_desc = []
+				if flags:
+					if flags & 0x02:  # SYN
+						flag_desc.append("SYN")
+					if flags & 0x10:  # ACK
+						flag_desc.append("ACK")
+					if flags & 0x01:  # FIN
+						flag_desc.append("FIN")
+					if flags & 0x08:  # PSH
+						flag_desc.append("PSH")
+					if flags & 0x04:  # RST
+						flag_desc.append("RST")
+				packet_type = "|".join(flag_desc) if flag_desc else "DATA"
+				
+				# Add to packet details
+				size = len(packet)
+				packet_details.append(f"{packet_type}, {capture_time}, {size} bytes")
+			
+			edge_label = f"{num_packets} packets, {transmitted} bytes\n"
+			edge_label += "\n".join(packet_details)
+
+			edge.attr['label'] = edge_label
+			#edge.attr['label'] = 'transmitted: %i bytes\n%s ' % (connection['transmitted'], ' | '.join(connection['layers']))
+
 			edge.attr['fontsize'] = '8'
 			edge.attr['minlen'] = '2'
 			edge.attr['penwidth'] = min(max(0.05,connection['connections'] * 1.0 / len(self.graph.nodes())), 2.0)
