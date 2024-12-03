@@ -227,6 +227,17 @@ class GraphManager(object):
 			node_ip = snode.split(':')[0] 
 			node.attr['color'] = host_colors.get(nnode, default_color)
 			node.attr['style'] = 'filled,rounded'
+		
+		# Extract the start time for each edge
+		edge_start_times = []
+		for edge in graph.edges():
+			connection = self.graph[edge[0]][edge[1]]
+			if connection['packets']:
+				first_packet_time = min(packet.time for packet in connection['packets'])
+				edge_start_times.append((edge, first_packet_time))
+
+		sorted_edges = sorted(edge_start_times, key=lambda x: x[1])
+		edge_order_map = {edge: idx + 1 for idx, (edge, _) in enumerate(sorted_edges)}
 
 
 		for edge in graph.edges():
@@ -261,7 +272,9 @@ class GraphManager(object):
 				size = len(packet)
 				packet_details.append(f"{packet_type}, {capture_time}, {size} bytes")
 			
-			edge_label = f"{num_packets} packets, {transmitted} bytes\n"
+			edge_order = edge_order_map[edge]
+
+			edge_label = f"Step {edge_order}, {num_packets} packets, {transmitted} bytes\n"
 			edge_label += "\n".join(packet_details)
 
 			edge.attr['label'] = edge_label
