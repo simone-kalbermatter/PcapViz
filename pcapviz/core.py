@@ -74,13 +74,21 @@ class GraphManager(object):
 		Ca      : 0x98039b0300b7e182 ports 1 "slimfly25 HCA-1"
 		Ca      : 0x98039b0300b7e122 ports 1 "slimfly24 HCA-1" """
 		IP_TO_HOSTNAME = {
-			"192.168.1.34": "slimfly24",
-			"192.168.1.35": "slimfly25",
-			"192.168.1.36": "slimfly26",
-			"192.168.1.37": "slimfly27",
-			"192.168.1.38": "slimfly28",
-			"192.168.1.39": "slimfly29",
-			"192.168.1.40": "slimfly30",
+			"192.168.1.34": "Host 2",
+			"192.168.1.35": "Host 1 (AM)",
+			"192.168.1.36": "Host 3",
+			"192.168.1.37": "Host 4",
+			"192.168.1.38": "Host 5",
+			"192.168.1.39": "Host 6",
+			"192.168.1.40": "Host 7",
+			"148.187.111.10": "Login Node", 
+			"148.187.111.34": "Host 2",
+			"148.187.111.35": "Host 1 (AM)",
+			"148.187.111.36": "Host 3",
+			"148.187.111.37": "Host 4",
+			"148.187.111.38": "Host 5",
+			"148.187.111.39": "Host 6",
+			"148.187.111.40": "Host 7",
 		}
 		hostname = IP_TO_HOSTNAME.get(ip, None)
 		return hostname
@@ -190,13 +198,13 @@ class GraphManager(object):
 			unique_ips.add(ip)
 
 		host_colors = {
-			"slimfly24": "PaleGreen",
-			"slimfly25": "LightPink",
-			"slimfly26": "LightCoral",
-			"slimfly27": "Honeydew",
-			"slimfly28": "PaleTurquoise",
-			"slimfly29": "MintCream",
-			"slimfly30": "SkyBlue"
+			"Host 1": "#F08705",
+			"Host 2": "#14969F",
+			"Host 3": "#61C6CE",
+			"Host 4": "#61C6CE",
+			"Host 5": "#61C6CE",
+			"Host 6": "#61C6CE",
+			"Host 7": "#61C6CE"
 		}
 		default_color = "gray"
 				
@@ -220,12 +228,18 @@ class GraphManager(object):
 			else:
 				nodelab = snode  # Fallback to the original node (IP + port)
 
+			node_color = default_color
+			for host_prefix, color in host_colors.items():
+				if nnode and nnode.startswith(host_prefix):
+					node_color = color
+					break
+
 			node.attr['label'] = nodelab
 			node.attr['shape'] = self.args.shape
 			node.attr['fontsize'] = '10'
 			node.attr['width'] = '0.5'
 			node_ip = snode.split(':')[0] 
-			node.attr['color'] = host_colors.get(nnode, default_color)
+			node.attr['color'] = node_color
 			node.attr['style'] = 'filled,rounded'
 		
 		# Extract the start time for each edge
@@ -236,53 +250,60 @@ class GraphManager(object):
 				first_packet_time = min(packet.time for packet in connection['packets'])
 				edge_start_times.append((edge, first_packet_time))
 
+		# Sort edges based on their start time
 		sorted_edges = sorted(edge_start_times, key=lambda x: x[1])
+
+		# Map edges to their order
 		edge_order_map = {edge: idx + 1 for idx, (edge, _) in enumerate(sorted_edges)}
 
-
+		# Loop through edges and apply the order
 		for edge in graph.edges():
 			connection = self.graph[edge[0]][edge[1]]
 
 			transmitted = connection['transmitted']
 			num_packets = connection['connections']
 
-			packet_details = []
-			for packet in connection['packets']:
-				# Extract sequence number
-				timestamp = float(packet.time)
-				capture_time = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc).strftime('%H:%M:%S.%f')
-				
-				# Extract packet type (flags)
-				flags = packet[TCP].flags if packet.haslayer(TCP) else None
-				flag_desc = []
-				if flags:
-					if flags & 0x02:  # SYN
-						flag_desc.append("SYN")
-					if flags & 0x10:  # ACK
-						flag_desc.append("ACK")
-					if flags & 0x01:  # FIN
-						flag_desc.append("FIN")
-					if flags & 0x08:  # PSH
-						flag_desc.append("PSH")
-					if flags & 0x04:  # RST
-						flag_desc.append("RST")
-				packet_type = "|".join(flag_desc) if flag_desc else "DATA"
-				
-				# Add to packet details
-				size = len(packet)
-				packet_details.append(f"{packet_type}, {capture_time}, {size} bytes")
-			
-			edge_order = edge_order_map[edge]
+			# Get the edge order from the map
+			edge_order = edge_order_map.get(edge, "N/A")  # Default to "N/A" if not found
 
-			edge_label = f"Step {edge_order}, {num_packets} packets, {transmitted} bytes\n"
-			edge_label += "\n".join(packet_details)
+			if self.args.message_detail == 'full':
+				packet_details = []
+				for packet in connection['packets']:
+					timestamp = float(packet.time)
+					capture_time = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc).strftime('%H:%M:%S.%f')
+					
+					# Extract packet type (flags)
+					flags = packet[TCP].flags if packet.haslayer(TCP) else None
+					flag_desc = []
+					if flags:
+						if flags & 0x02:  # SYN
+							flag_desc.append("SYN")
+						if flags & 0x10:  # ACK
+							flag_desc.append("ACK")
+						if flags & 0x01:  # FIN
+							flag_desc.append("FIN")
+						if flags & 0x08:  # PSH
+							flag_desc.append("PSH")
+						if flags & 0x04:  # RST
+							flag_desc.append("RST")
+					packet_type = "|".join(flag_desc) if flag_desc else "DATA"
+					
+					# Add to packet details
+					size = len(packet)
+					packet_details.append(f"{packet_type}, {capture_time}, {size} bytes")
+				
+				edge_label = f"Step {edge_order}, {num_packets} packets, {transmitted} bytes\n"
+				edge_label += "\n".join(packet_details)
+
+			elif self.args.message_detail == 'summary':
+				# Summary message details
+				edge_label = f"Step {edge_order}, {num_packets} packets, {transmitted} bytes"
 
 			edge.attr['label'] = edge_label
-			#edge.attr['label'] = 'transmitted: %i bytes\n%s ' % (connection['transmitted'], ' | '.join(connection['layers']))
-
 			edge.attr['fontsize'] = '8'
 			edge.attr['minlen'] = '2'
-			edge.attr['penwidth'] = min(max(0.05,connection['connections'] * 1.0 / len(self.graph.nodes())), 2.0)
+			edge.attr['penwidth'] = min(max(0.05, connection['connections'] * 1.0 / len(self.graph.nodes())), 2.0)
+
 		graph.layout(prog=self.args.layoutengine)
 		graph.draw(filename)
 
