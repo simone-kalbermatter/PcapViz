@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Directory containing input subfolders
-INPUT_DIR="../captures"
+INPUT_DIR="../captures/comm_patterns"
 
 # Directory for output subfolders
 OUTPUT_DIR="outputs"
@@ -34,8 +34,10 @@ for subfolder in "$INPUT_DIR"/{mpi,tree,ring,init}*; do
 
         # Run the Python command for layer3
         python3 main.py -i "$pcap_file" -o "$output_file_layer3" --layer3 -E dot -s ellipse --message-detail full
+        python3 main.py -i "$pcap_file" -o "$output_file_layer3" --layer3 -E dot -s ellipse --message-detail summary
 
-        # Run the Python command for layer4
+        # Run the Python command for layer
+        python3 main.py -i "$pcap_file" -o "$output_file_layer4" --layer4 -E dot -s ellipse --message-detail full
         python3 main.py -i "$pcap_file" -o "$output_file_layer4" --layer4 -E dot -s ellipse --message-detail summary
     done
 done

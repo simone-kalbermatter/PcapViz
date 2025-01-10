@@ -292,12 +292,15 @@ class GraphManager(object):
 					size = len(packet)
 					packet_details.append(f"{packet_type}, {capture_time}, {size} bytes")
 				
-				edge_label = f"Step {edge_order}, {num_packets} packets, {transmitted} bytes\n"
+				edge_label = f" Step {edge_order}    \n {num_packets} packets    \n {transmitted} bytes    \n"
 				edge_label += "\n".join(packet_details)
 
 			elif self.args.message_detail == 'summary':
 				# Summary message details
-				edge_label = f"Step {edge_order}, {num_packets} packets, {transmitted} bytes"
+				edge_label = f" Step {edge_order}    \n {num_packets} packets    \n {transmitted} bytes    \n"
+
+			if edge_order%2 == 1:
+				edge.attr['color'] = 'red'
 
 			edge.attr['label'] = edge_label
 			edge.attr['fontsize'] = '8'
