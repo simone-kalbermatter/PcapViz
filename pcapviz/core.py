@@ -64,17 +64,8 @@ class GraphManager(object):
 			self._retrieve_edge_info(src, dst)
 
 	def resolve_internal_ip(self, ip):
-		""" 		[skalberm@slimfly24 ~]$ sudo ibhosts
-		Ca      : 0x98039b0300b7e172 ports 1 "slimfly26 HCA-1"
-		Ca      : 0xb8599f0300895a58 ports 1 "Mellanox Technologies Aggregation Node"
-		Ca      : 0xec0d9a0300656264 ports 1 "slimfly28 HCA-1"
-		Ca      : 0xec0d9a030065625c ports 1 "slimfly30 HCA-1"
-		Ca      : 0x98039b0300b7e152 ports 1 "slimfly27 HCA-1"
-		Ca      : 0xec0d9a0300656290 ports 1 "slimfly29 mlx5_0"
-		Ca      : 0x98039b0300b7e182 ports 1 "slimfly25 HCA-1"
-		Ca      : 0x98039b0300b7e122 ports 1 "slimfly24 HCA-1" """
 		IP_TO_HOSTNAME = {
-			"192.168.1.34": "Host 2",
+			"192.168.1.34": "Host 2 (Init)",
 			"192.168.1.35": "Host 1 (AM)",
 			"192.168.1.36": "Host 3",
 			"192.168.1.37": "Host 4",
@@ -82,7 +73,7 @@ class GraphManager(object):
 			"192.168.1.39": "Host 6",
 			"192.168.1.40": "Host 7",
 			"148.187.111.10": "Login Node", 
-			"148.187.111.34": "Host 2",
+			"148.187.111.34": "Host 2 (Init)",
 			"148.187.111.35": "Host 1 (AM)",
 			"148.187.111.36": "Host 3",
 			"148.187.111.37": "Host 4",
@@ -256,15 +247,14 @@ class GraphManager(object):
 		# Map edges to their order
 		edge_order_map = {edge: idx + 1 for idx, (edge, _) in enumerate(sorted_edges)}
 
-		# Loop through edges and apply the order
+		step = 1
 		for edge in graph.edges():
 			connection = self.graph[edge[0]][edge[1]]
 
 			transmitted = connection['transmitted']
 			num_packets = connection['connections']
 
-			# Get the edge order from the map
-			edge_order = edge_order_map.get(edge, "N/A")  # Default to "N/A" if not found
+			edge_order = edge_order_map.get(edge, "N/A")
 
 			if self.args.message_detail == 'full':
 				packet_details = []
@@ -272,33 +262,40 @@ class GraphManager(object):
 					timestamp = float(packet.time)
 					capture_time = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc).strftime('%H:%M:%S.%f')
 					
-					# Extract packet type (flags)
+					# Extract packet type (TCP flags)
 					flags = packet[TCP].flags if packet.haslayer(TCP) else None
 					flag_desc = []
 					if flags:
-						if flags & 0x02:  # SYN
+						if flags & 0x02:
 							flag_desc.append("SYN")
-						if flags & 0x10:  # ACK
+						if flags & 0x10:
 							flag_desc.append("ACK")
-						if flags & 0x01:  # FIN
+						if flags & 0x01:
 							flag_desc.append("FIN")
-						if flags & 0x08:  # PSH
+						if flags & 0x08:
 							flag_desc.append("PSH")
-						if flags & 0x04:  # RST
+						if flags & 0x04:
 							flag_desc.append("RST")
 					packet_type = "|".join(flag_desc) if flag_desc else "DATA"
 					
-					# Add to packet details
 					size = len(packet)
 					packet_details.append(f"{packet_type}, {capture_time}, {size} bytes")
 				
-				edge_label = f" Step {edge_order}    \n {num_packets} packets    \n {transmitted} bytes    \n"
+				if edge_order%2 == 1:
+					edge_label = f" Step {step}    \n {num_packets} packets    \n {transmitted} bytes    \n"
+					step = step + 1
+				else:
+					edge_label = f"{num_packets} packets    \n {transmitted} bytes    \n"
 				edge_label += "\n".join(packet_details)
 
 			elif self.args.message_detail == 'summary':
-				# Summary message details
-				edge_label = f" Step {edge_order}    \n {num_packets} packets    \n {transmitted} bytes    \n"
+				if edge_order%2 == 1:
+					edge_label = f" Step {step}    \n {num_packets} packets    \n {transmitted} bytes    \n"
+					step = step + 1
+				else:
+					edge_label = f"{num_packets} packets    \n {transmitted} bytes    \n"
 
+			# Show initiating edges in red	
 			if edge_order%2 == 1:
 				edge.attr['color'] = 'red'
 
